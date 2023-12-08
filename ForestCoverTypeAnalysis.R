@@ -9,6 +9,7 @@ library(vroom) # Import data
 library(tidymodels) # Modeling
 library(rpart) # For random forest
 library(reshape2) # To be able to melt my table
+library(skimr) # for skim function
 
 
 # LOAD DATA ---------------------------------------------------------------
@@ -64,7 +65,7 @@ rf_mod <- rand_forest(mtry = tune(),
 ## Recipe
 my_recipe <- recipe(Cover_Type~., data=trainSet) %>% 
   step_rm('Id') %>%
-  step_other(-all_outcomes(), threshold = 0) %>%# remove all zero variance predictors
+  step_zv(all_predictors()) %>%# remove all zero variance predictors
   step_normalize(all_numeric_predictors())  # normalized all numeric predictors
   # glm target encoding encoding precitors
 
