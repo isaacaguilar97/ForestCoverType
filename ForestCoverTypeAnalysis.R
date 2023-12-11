@@ -10,6 +10,7 @@ library(tidymodels) # Modeling
 library(rpart) # For random forest
 library(reshape2) # To be able to melt my table
 library(skimr) # for skim function
+library(stacks) # For stack model
 
 
 # LOAD DATA ---------------------------------------------------------------
@@ -19,38 +20,38 @@ trainSet <- vroom('./train.csv')
 testSet <- vroom('./test3.csv')
 trainSet$Cover_Type <- as.factor(trainSet$Cover_Type) # Convert Cover_Type as a factor
 
-# EDA ---------------------------------------------------------------------
-
-dplyr::glimpse(trainSet)
-#summary(trainSet)
-skimr::skim(trainSet)
-# I have a few zero variabce predictors
-
-# What is the Response Variable (Cover_Type with 7 categories)
-unique(trainSet$Cover_Type)
-
-# Count per type 
-summary(trainSet$Cover_Type) # They all have the same amount 2160
-
-# Look at distributions from 2 to 11 per category
-colnames(trainSet)[2:11]
-
-ggplot(trainSet, aes(x = Elevation, fill = Cover_Type)) +
-  geom_density(alpha = 0.5) +
-  labs(title = "Elevation by Cover_Type")
-# Elevation is very different per type
-ggplot(trainSet, aes(x = Aspect, fill = Cover_Type)) +
-  geom_density(alpha = 0.5) +
-  labs(title = "Aspect by Cover_Type")
-# Aspect is a little different
-ggplot(trainSet, aes(x = Slope, fill = Cover_Type)) +
-  geom_density(alpha = 0.5) +
-  labs(title = "Slope by Cover_Type")
-# Slope is almost the same
-ggplot(trainSet, aes(x = Slope, fill = Cover_Type)) +
-  geom_density(alpha = 0.5) +
-  labs(title = "Slope by Cover_Type")
-
+# # EDA ---------------------------------------------------------------------
+# 
+# # dplyr::glimpse(trainSet)
+# # summary(trainSet)
+# # skimr::skim(trainSet)
+# # I have a few zero variabce predictors
+# 
+# # What is the Response Variable (Cover_Type with 7 categories)
+# unique(trainSet$Cover_Type)
+# 
+# # Count per type 
+# summary(trainSet$Cover_Type) # They all have the same amount 2160
+# 
+# # Look at distributions from 2 to 11 per category
+# colnames(trainSet)[2:11]
+# 
+# ggplot(trainSet, aes(x = Elevation, fill = Cover_Type)) +
+#   geom_density(alpha = 0.5) +
+#   labs(title = "Elevation by Cover_Type")
+# # Elevation is very different per type
+# ggplot(trainSet, aes(x = Aspect, fill = Cover_Type)) +
+#   geom_density(alpha = 0.5) +
+#   labs(title = "Aspect by Cover_Type")
+# # Aspect is a little different
+# ggplot(trainSet, aes(x = Slope, fill = Cover_Type)) +
+#   geom_density(alpha = 0.5) +
+#   labs(title = "Slope by Cover_Type")
+# # Slope is almost the same
+# ggplot(trainSet, aes(x = Slope, fill = Cover_Type)) +
+#   geom_density(alpha = 0.5) +
+#   labs(title = "Slope by Cover_Type")
+# 
 
 # RANDOM FOREST -----------------------------------------------------------
 
@@ -58,12 +59,14 @@ ggplot(trainSet, aes(x = Slope, fill = Cover_Type)) +
 # Model
 rf_mod <- rand_forest(mtry = tune(),
                       min_n=tune(),
-                      trees=500) %>% #Type of model
+                      trees=50) %>% #Type of model
   set_engine("ranger") %>% # What R function to use
   set_mode("classification")
 
+smaller <- head(trainSet, 100)
+
 ## Recipe
-my_recipe <- recipe(Cover_Type~., data=trainSet) %>% 
+my_recipe <- recipe(Cover_Type~., data=smaller) %>% 
   step_rm('Id') %>%
   step_zv(all_predictors()) %>%# remove all zero variance predictors
   step_normalize(all_numeric_predictors())  # normalized all numeric predictors
@@ -75,9 +78,9 @@ rf_wf <- workflow() %>%
   add_model(rf_mod)
 
 
-
 ## Set up grid of tuning values
-tuning_grid <- grid_regular(mtry(range = c(1,54)),
+tuning_grid <- grid_regular(mtry(range = c(1,52)),
+                            levels = 5, 
                             min_n()) # Maybe don't use levels
 
 ## Set up K-fold CV (This usually takes sometime)
@@ -104,10 +107,14 @@ preds <- final_wf %>%
 # Format table
 testSet$Cover_Type <- preds$.pred_class
 results <- testSet %>%
-  select(Id, Coverype)
+  select(Id, Cover_Type)
 
 # get csv file
 vroom_write(results, 'submissions.csv', delim = ",")
+
+# STACKING RANDOM FOREST & PENALIZED REGRESSION ---------------------------
+
+
 
 
 
