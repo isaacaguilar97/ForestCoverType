@@ -11,6 +11,7 @@ library(rpart) # For random forest
 library(reshape2) # To be able to melt my table
 library(skimr) # for skim function
 library(stacks) # For stack model
+library(lightgbm) # For xgboost model
 
 
 # LOAD DATA ---------------------------------------------------------------
