@@ -91,14 +91,14 @@ tuning_grid <- grid_regular(mtry(range = c(1,52)),
                             min_n()) # Maybe don't use levels
 
 # Cross Validation
-rf_models <- rf_wf %>%
-  tune_grid(resamples=folds,
-            grid=tuning_grid,
-            metrics=metric_set(accuracy),
-            control=untunedModel)
+# rf_models <- rf_wf %>%
+#   tune_grid(resamples=folds,
+#             grid=tuning_grid,
+#             metrics=metric_set(accuracy),
+#             control=untunedModel)
 
-# load("FCTrf.Rdata")
-save(rf_models, file = "FCTrf.Rdata")
+load("FCT.Rdata")
+# save(rf_models, file = "FCTrf.Rdata")
 
 # BOOST TREES -------------------------------------------------------------
 
@@ -154,8 +154,6 @@ results <- testSet %>%
 # get csv file
 vroom_write(results, 'submissions.csv', delim = ",")
 
-
-## load("name.Rdata")
 
 
 
