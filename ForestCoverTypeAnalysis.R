@@ -17,7 +17,7 @@ library(stacks) # For stack model
 
 # setwd('~/College/Stat348/ForestCoverType')
 trainSet <- vroom('./train.csv')
-testSet <- vroom('./test3.csv')
+testSet <- vroom('./test.csv')
 trainSet$Cover_Type <- as.factor(trainSet$Cover_Type) # Convert Cover_Type as a factor
 
 # # EDA ---------------------------------------------------------------------
@@ -59,14 +59,13 @@ trainSet$Cover_Type <- as.factor(trainSet$Cover_Type) # Convert Cover_Type as a 
 # Model
 rf_mod <- rand_forest(mtry = tune(),
                       min_n=tune(),
-                      trees=50) %>% #Type of model
+                      trees=300) %>% #Type of model
   set_engine("ranger") %>% # What R function to use
   set_mode("classification")
 
-smaller <- head(trainSet, 100)
 
 ## Recipe
-my_recipe <- recipe(Cover_Type~., data=smaller) %>% 
+my_recipe <- recipe(Cover_Type~., data=trainSet) %>% 
   step_rm('Id') %>%
   step_zv(all_predictors()) %>%# remove all zero variance predictors
   step_normalize(all_numeric_predictors())  # normalized all numeric predictors
@@ -103,7 +102,7 @@ final_wf <- rf_wf %>%
 
 preds <- final_wf %>%
   predict(new_data = testSet, type = 'class')
-
+head(testSet)
 # Format table
 testSet$Cover_Type <- preds$.pred_class
 results <- testSet %>%
@@ -111,6 +110,9 @@ results <- testSet %>%
 
 # get csv file
 vroom_write(results, 'submissions.csv', delim = ",")
+
+## save(obj1, obj2, file = "name.Rdata")
+## load("name.Rdata")
 
 # STACKING RANDOM FOREST & PENALIZED REGRESSION ---------------------------
 
