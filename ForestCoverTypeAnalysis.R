@@ -53,8 +53,24 @@ trainSet$Cover_Type <- as.factor(trainSet$Cover_Type) # Convert Cover_Type as a 
 #   labs(title = "Slope by Cover_Type")
 # 
 
-# RANDOM FOREST -----------------------------------------------------------
 
+# STACKING -----------------------------------------------------------
+
+# Recipe
+my_recipe <- recipe(Cover_Type~., data=trainSet) %>% 
+  step_rm('Id') %>%
+  step_zv(all_predictors()) %>%# remove all zero variance predictors
+  step_normalize(all_numeric_predictors())  # normalized all numeric predictors
+# glm target encoding encoding precitors
+
+## Split data for CV
+folds <- vfold_cv(bike_cleaned, v = 5, repeats=1)
+
+## Control Settings for Stacking models
+untunedModel <- control_stack_grid()
+tunedModel <- control_stack_resamples()
+
+# RANDOM FOREST -----------------------------------------------------------
 
 # Model
 rf_mod <- rand_forest(mtry = tune(),
@@ -62,14 +78,6 @@ rf_mod <- rand_forest(mtry = tune(),
                       trees=300) %>% #Type of model
   set_engine("ranger") %>% # What R function to use
   set_mode("classification")
-
-
-## Recipe
-my_recipe <- recipe(Cover_Type~., data=trainSet) %>% 
-  step_rm('Id') %>%
-  step_zv(all_predictors()) %>%# remove all zero variance predictors
-  step_normalize(all_numeric_predictors())  # normalized all numeric predictors
-  # glm target encoding encoding precitors
 
 ## Workflow
 rf_wf <- workflow() %>% 
@@ -82,31 +90,64 @@ tuning_grid <- grid_regular(mtry(range = c(1,52)),
                             levels = 5, 
                             min_n()) # Maybe don't use levels
 
-## Set up K-fold CV (This usually takes sometime)
-folds <- vfold_cv(trainSet, v = 5, repeats=1)
-
-CV_results <- rf_wf %>%
+# Cross Validation
+rf_models <- rf_wf %>%
   tune_grid(resamples=folds,
             grid=tuning_grid,
-            metrics=metric_set(accuracy))
+            metrics=metric_set(accuracy),
+            control=untunedModel)
 
-save(CV_results, file = "FCT.Rdata")
+# load("FCTrf.Rdata")
+save(rf_models, file = "FCTrf.Rdata")
 
-## Find best tuning parameters
-bestTune <- CV_results %>% 
-  select_best("accuracy")
+# BOOST TREES -------------------------------------------------------------
 
-## Finalize workflow and predict
+boost_model <- boost_tree(tree_depth=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>%
+  set_engine("lightgbm") %>% #or "xgboost" but lightgbm is faster
+  set_mode("classification")
 
-final_wf <- rf_wf %>% 
-  finalize_workflow(bestTune) %>% 
-  fit(data=trainSet)
+# Workflow
+bt_wf <- workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(boost_model)
 
-preds <- final_wf %>%
-  predict(new_data = testSet, type = 'class')
-head(testSet)
+# Tune
+tuneGrid <- grid_regular(tree_depth(),
+                            trees(),
+                            learn_rate(),
+                            levels = 5)
+
+# Cross Validation
+bst_models <- bt_wf %>%
+  tune_grid(resamples=folds,
+            grid=tuneGrid,
+            metrics=metric_set(accuracy),
+            control = untunedModel)
+
+# load("FCTbst.Rdata")
+save(bst_models, file = "FCTbst.Rdata")
+
+# BACK IN THE STACKING ----------------------------------------------------
+
+## Specify which models to include
+forest_stack <- stacks() %>%
+  add_candidates(rf_models) %>%
+  add_candidates(bst_models) 
+
+# Fit the stacked model
+fitted_forest_stack <-  forest_stack %>%
+  blend_predictions() %>%
+  fit_members()
+
+# Predict
+forest_pred_stack <- fitted_forest_stack %>%
+  predict(new_data = testSet)
+
+
 # Format table
-testSet$Cover_Type <- preds$.pred_class
+testSet$Cover_Type <- forest_pred_stack$.pred_class
 results <- testSet %>%
   select(Id, Cover_Type)
 
@@ -116,7 +157,7 @@ vroom_write(results, 'submissions.csv', delim = ",")
 
 ## load("name.Rdata")
 
-# STACKING RANDOM FOREST & PENALIZED REGRESSION ---------------------------
+
 
 
 
