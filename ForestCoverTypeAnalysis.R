@@ -64,7 +64,7 @@ my_recipe <- recipe(Cover_Type~., data=trainSet) %>%
 # glm target encoding encoding precitors
 
 ## Split data for CV
-folds <- vfold_cv(bike_cleaned, v = 5, repeats=1)
+folds <- vfold_cv(trainSet, v = 5, repeats=1)
 
 ## Control Settings for Stacking models
 untunedModel <- control_stack_grid()
