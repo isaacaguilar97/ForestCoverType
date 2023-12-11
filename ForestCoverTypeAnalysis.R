@@ -90,6 +90,8 @@ CV_results <- rf_wf %>%
             grid=tuning_grid,
             metrics=metric_set(accuracy))
 
+save(CV_results, file = "FCT.Rdata")
+
 ## Find best tuning parameters
 bestTune <- CV_results %>% 
   select_best("accuracy")
@@ -111,7 +113,7 @@ results <- testSet %>%
 # get csv file
 vroom_write(results, 'submissions.csv', delim = ",")
 
-## save(obj1, obj2, file = "name.Rdata")
+
 ## load("name.Rdata")
 
 # STACKING RANDOM FOREST & PENALIZED REGRESSION ---------------------------
