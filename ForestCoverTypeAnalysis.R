@@ -108,7 +108,7 @@ rf_models  %>%
 # BOOST TREES -------------------------------------------------------------
 
 boost_model <- boost_tree(tree_depth=6,
-                          trees=300,
+                          trees=30,
                           learn_rate=tune()) %>%
   set_engine("lightgbm") %>% 
   set_mode("classification")
@@ -120,7 +120,7 @@ bt_wf <- workflow() %>%
 
 # Tune
 tuneGrid <- grid_regular(learn_rate(),
-                            levels = 5)
+                            levels = 3)
 
 # Cross Validation
 bst_models <- bt_wf %>%
