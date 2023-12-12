@@ -35,7 +35,7 @@ trainSet$Cover_Type <- as.factor(trainSet$Cover_Type) # Convert Cover_Type as a 
 # # Count per type 
 # summary(trainSet$Cover_Type) # They all have the same amount 2160
 # 
-# # Look at distributions from 2 to 11 per category
+# Look at distributions from 2 to 11 per category
 # colnames(trainSet)[2:11]
 # 
 # ggplot(trainSet, aes(x = Elevation, fill = Cover_Type)) +
@@ -102,12 +102,15 @@ tuning_grid <- grid_regular(mtry(range = c(1,52)),
 load("FCT.Rdata")
 # save(rf_models, file = "FCTrf.Rdata")
 
+rf_models  %>%
+  select_best("accuracy")
+
 # BOOST TREES -------------------------------------------------------------
 
 boost_model <- boost_tree(tree_depth=tune(),
-                          trees=tune(),
+                          trees=300,
                           learn_rate=tune()) %>%
-  set_engine("lightgbm") %>% #or "xgboost" but lightgbm is faster
+  set_engine("lightgbm") %>% 
   set_mode("classification")
 
 # Workflow
@@ -117,7 +120,6 @@ bt_wf <- workflow() %>%
 
 # Tune
 tuneGrid <- grid_regular(tree_depth(),
-                            trees(),
                             learn_rate(),
                             levels = 5)
 
@@ -131,12 +133,43 @@ bst_models <- bt_wf %>%
 # load("FCTbst.Rdata")
 save(bst_models, file = "FCTbst.Rdata")
 
+# bst_models  %>%
+#   select_best("accuracy")
+
+
+# PENALIZED LOGISTIC REGRESSION -------------------------------------------
+
+plg_mod <- multinom_reg(mixture=tune(), penalty=tune()) %>%
+  set_engine("glmnet", family = "multinomial")
+
+# Workflow
+plg_wf <- workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(plg_mod)
+
+## Grid of values to tune over
+tuning_grid <- grid_regular(penalty(),
+                            mixture(),
+                            levels = 5) 
+
+## Run the CV
+plg_models <- plg_wf %>%
+  tune_grid(resamples=folds,
+          grid=tuning_grid,
+          metrics=metric_set(accuracy),
+          control = untunedModel)
+
+# load("FCTplg.Rdata")
+save(plg_models, file = "FCTplg.Rdata")
+
+
 # BACK IN THE STACKING ----------------------------------------------------
 
 ## Specify which models to include
 forest_stack <- stacks() %>%
   add_candidates(rf_models) %>%
-  add_candidates(bst_models) 
+  add_candidates(bst_models) %>%
+  add_candidates(plg_models) 
 
 # Fit the stacked model
 fitted_forest_stack <-  forest_stack %>%
