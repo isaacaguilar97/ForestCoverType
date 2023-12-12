@@ -99,7 +99,7 @@ tuning_grid <- grid_regular(mtry(range = c(1,52)),
 #             metrics=metric_set(accuracy),
 #             control=untunedModel)
 
-load("FCT.Rdata")
+load("FCTrf.Rdata")
 # save(rf_models, file = "FCTrf.Rdata")
 
 rf_models  %>%
@@ -107,7 +107,7 @@ rf_models  %>%
 
 # BOOST TREES -------------------------------------------------------------
 
-boost_model <- boost_tree(tree_depth=tune(),
+boost_model <- boost_tree(tree_depth=6,
                           trees=300,
                           learn_rate=tune()) %>%
   set_engine("lightgbm") %>% 
@@ -119,8 +119,7 @@ bt_wf <- workflow() %>%
   add_model(boost_model)
 
 # Tune
-tuneGrid <- grid_regular(tree_depth(),
-                            learn_rate(),
+tuneGrid <- grid_regular(learn_rate(),
                             levels = 5)
 
 # Cross Validation
@@ -128,7 +127,7 @@ bst_models <- bt_wf %>%
   tune_grid(resamples=folds,
             grid=tuneGrid,
             metrics=metric_set(accuracy),
-            control = untunedModel)
+            control = tunedModel)
 
 # load("FCTbst.Rdata")
 save(bst_models, file = "FCTbst.Rdata")
