@@ -1,5 +1,9 @@
 ### MULTIVARIABLE PROBLEM ###
+library(doParallel)
 
+num_cores <- parallel::detectCores() #How many cores do I have?
+cl <- makePSOCKcluster(num_cores)
+registerDoParallel(cl)
 
 # LOAD PACKAGES -----------------------------------------------------------
 
@@ -88,52 +92,20 @@ rf_wf <- workflow() %>%
 
 
 ## Set up grid of tuning values
-tuning_grid <- grid_regular(mtry(range = c(1,52)),
+tuning_grid <- grid_regular(mtry(range = c(1,51)),
                             levels = 5, 
                             min_n()) # Maybe don't use levels
 
 # Cross Validation
-# rf_models <- rf_wf %>%
-#   tune_grid(resamples=folds,
-#             grid=tuning_grid,
-#             metrics=metric_set(accuracy),
-#             control=untunedModel)
+rf_models <- rf_wf %>%
+  tune_grid(resamples=folds,
+            grid=tuning_grid,
+            metrics=metric_set(accuracy),
+            control=tunedModel)
+
 
 load("FCTrf.Rdata")
 # save(rf_models, file = "FCTrf.Rdata")
-
-rf_models  %>%
-  select_best("accuracy")
-
-# BOOST TREES -------------------------------------------------------------
-
-boost_model <- boost_tree(tree_depth=6,
-                          trees=30,
-                          learn_rate=tune()) %>%
-  set_engine("lightgbm") %>% 
-  set_mode("classification")
-
-# Workflow
-bt_wf <- workflow() %>%
-  add_recipe(my_recipe) %>%
-  add_model(boost_model)
-
-# Tune
-tuneGrid <- grid_regular(learn_rate(),
-                            levels = 3)
-
-# Cross Validation
-bst_models <- bt_wf %>%
-  tune_grid(resamples=folds,
-            grid=tuneGrid,
-            metrics=metric_set(accuracy),
-            control = tunedModel)
-
-# load("FCTbst.Rdata")
-save(bst_models, file = "FCTbst.Rdata")
-
-# bst_models  %>%
-#   select_best("accuracy")
 
 
 # PENALIZED LOGISTIC REGRESSION -------------------------------------------
@@ -156,10 +128,39 @@ plg_models <- plg_wf %>%
   tune_grid(resamples=folds,
           grid=tuning_grid,
           metrics=metric_set(accuracy),
-          control = untunedModel)
+          control=tunedModel)
+
+
 
 # load("FCTplg.Rdata")
 save(plg_models, file = "FCTplg.Rdata")
+
+# BOOST TREES -------------------------------------------------------------
+
+boost_model <- boost_tree(tree_depth=6,
+                          trees=30,
+                          learn_rate=0.1) %>%
+  set_engine("lightgbm") %>% 
+  set_mode("classification")
+
+# Workflow
+bt_wf <- workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(boost_model)
+
+# Tune
+tuneGrid <- grid_regular(learn_rate(),
+                         levels = 3)
+
+# Cross Validation
+bst_models <- bt_wf %>%
+  tune_grid(resamples=folds,
+            grid=tuneGrid,
+            metrics=metric_set(accuracy),
+            control = untunedModel)
+
+# load("FCTbst.Rdata")
+save(bst_models, file = "FCTbst.Rdata")
 
 
 # BACK IN THE STACKING ----------------------------------------------------
@@ -188,6 +189,7 @@ results <- testSet %>%
 # get csv file
 vroom_write(results, 'submissions.csv', delim = ",")
 
+stopCluster(cl)
 
 
 
