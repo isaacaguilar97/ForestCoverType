@@ -79,38 +79,44 @@ tunedModel <- control_stack_resamples()
 # RANDOM FOREST -----------------------------------------------------------
 
 # Model
-rf_mod <- rand_forest(mtry = tune(),
-                      min_n=tune(),
+rf_mod <- rand_forest(mtry = 26,
+                      min_n=2,
                       trees=300) %>% #Type of model
   set_engine("ranger") %>% # What R function to use
   set_mode("classification")
 
 ## Workflow
-rf_wf <- workflow() %>% 
+rf_wf <- workflow() %>%
   add_recipe(my_recipe) %>%
   add_model(rf_mod)
 
-
-## Set up grid of tuning values
-tuning_grid <- grid_regular(mtry(range = c(1,51)),
-                            levels = 5, 
-                            min_n()) # Maybe don't use levels
-
-# Cross Validation
-rf_models <- rf_wf %>%
-  tune_grid(resamples=folds,
-            grid=tuning_grid,
-            metrics=metric_set(accuracy),
-            control=tunedModel)
+# Cross-validation 
+rf_results <- rf_wf %>%
+  fit_resamples(resamples = folds,
+                metrics = metric_set(roc_auc),
+                control=untunedModel)
 
 
-load("FCTrf.Rdata")
+# ## Set up grid of tuning values
+# tuning_grid <- grid_regular(mtry(range = c(1,51)),
+#                             levels = 5, 
+#                             min_n()) # Maybe don't use levels
+# 
+# # Cross Validation
+# rf_models <- rf_wf %>%
+#   tune_grid(resamples=folds,
+#             grid=tuning_grid,
+#             metrics=metric_set(accuracy),
+#             control=tunedModel)
+
+
+# load("FCTrf.Rdata")
 # save(rf_models, file = "FCTrf.Rdata")
 
 
 # PENALIZED LOGISTIC REGRESSION -------------------------------------------
 
-plg_mod <- multinom_reg(mixture=tune(), penalty=tune()) %>%
+plg_mod <- multinom_reg(mixture=0, penalty=1) %>%
   set_engine("glmnet", family = "multinomial")
 
 # Workflow
@@ -118,27 +124,33 @@ plg_wf <- workflow() %>%
   add_recipe(my_recipe) %>%
   add_model(plg_mod)
 
-## Grid of values to tune over
-tuning_grid <- grid_regular(penalty(),
-                            mixture(),
-                            levels = 5) 
+plg_results <- plg_wf %>%
+  fit_resamples(resamples = folds,
+                metrics = metric_set(roc_auc),
+                control=untunedModel)
 
-## Run the CV
-plg_models <- plg_wf %>%
-  tune_grid(resamples=folds,
-          grid=tuning_grid,
-          metrics=metric_set(accuracy),
-          control=tunedModel)
-
-
-
+# ## Grid of values to tune over
+# tuning_grid <- grid_regular(penalty(),
+#                             mixture(),
+#                             levels = 5) 
+# 
+# ## Run the CV
+# plg_models <- plg_wf %>%
+#   tune_grid(resamples=folds,
+#           grid=tuning_grid,
+#           metrics=metric_set(accuracy),
+#           control=tunedModel)
+# 
+# 
+# 
 # load("FCTplg.Rdata")
-save(plg_models, file = "FCTplg.Rdata")
+# save(plg_models, file = "FCTplg.Rdata")
+
 
 # BOOST TREES -------------------------------------------------------------
 
 boost_model <- boost_tree(tree_depth=6,
-                          trees=30,
+                          trees=50,
                           learn_rate=0.1) %>%
   set_engine("lightgbm") %>% 
   set_mode("classification")
@@ -148,28 +160,34 @@ bt_wf <- workflow() %>%
   add_recipe(my_recipe) %>%
   add_model(boost_model)
 
-# Tune
-tuneGrid <- grid_regular(learn_rate(),
-                         levels = 3)
+bt_results <- bt_wf %>%
+  fit_resamples(resamples = folds,
+                metrics = metric_set(roc_auc),
+                control=untunedModel)
 
-# Cross Validation
-bst_models <- bt_wf %>%
-  tune_grid(resamples=folds,
-            grid=tuneGrid,
-            metrics=metric_set(accuracy),
-            control = untunedModel)
+# # Tune
+# tuneGrid <- grid_regular(learn_rate(),
+#                          levels = 3)
+# 
+# # Cross Validation
+# bst_models <- bt_wf %>%
+#   tune_grid(resamples=folds,
+#             grid=tuneGrid,
+#             metrics=metric_set(accuracy),
+#             control = untunedModel)
 
 # load("FCTbst.Rdata")
-save(bst_models, file = "FCTbst.Rdata")
+# save(bst_models, file = "FCTbst.Rdata")
 
 
 # BACK IN THE STACKING ----------------------------------------------------
 
 ## Specify which models to include
 forest_stack <- stacks() %>%
-  add_candidates(rf_models) %>%
-  add_candidates(bst_models) %>%
-  add_candidates(plg_models) 
+  add_candidates(rf_results) %>%
+  add_candidates(bt_results) %>%
+  add_candidates(plg_results)
+  
 
 # Fit the stacked model
 fitted_forest_stack <-  forest_stack %>%
